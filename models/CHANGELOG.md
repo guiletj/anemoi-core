@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your functional changes to the appropriate section in the PR.
 Keep it human-readable, your future self will thank you!
 
+## [0.16.1](https://github.com/ecmwf/anemoi-core/compare/models-0.16.0...models-0.16.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* Failing sht test ([#1194](https://github.com/ecmwf/anemoi-core/issues/1194)) ([133cb25](https://github.com/ecmwf/anemoi-core/commit/133cb253628c65de23a46ecfb02100b75aa8ef92))
+* **models:** Fix test file discovery and add missing test coverage ([#1185](https://github.com/ecmwf/anemoi-core/issues/1185)) ([7b3b3b1](https://github.com/ecmwf/anemoi-core/commit/7b3b3b167855360faa8859c87f49d0197df1d9c0))
+* **models:** Triton GT stability ([#1172](https://github.com/ecmwf/anemoi-core/issues/1172)) ([bbca174](https://github.com/ecmwf/anemoi-core/commit/bbca17482d6176f53c16adb1d268ff1874840397))
+* Remove version limit ([#1178](https://github.com/ecmwf/anemoi-core/issues/1178)) ([821b1f0](https://github.com/ecmwf/anemoi-core/commit/821b1f0ee73d1fb4310d3f8a679001697e2331f0))
+* Revert torch limit ([#1204](https://github.com/ecmwf/anemoi-core/issues/1204)) ([8308654](https://github.com/ecmwf/anemoi-core/commit/8308654424a0dca1cc28274cace3e00c21fc5088))
+
 ## [0.16.0](https://github.com/ecmwf/anemoi-core/compare/models-0.15.1...models-0.16.0) (2026-06-08)
 
 
