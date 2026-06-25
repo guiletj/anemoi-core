@@ -58,20 +58,26 @@ class Cartesian2DTransform(SpectralTransform):
     # "fft": signed FFT wavenumbers (|k| in 0..N//2); "index": cosine indices 0..N-1.
     _radial_wavenumber_kind: str = "fft"
 
-    def _ensure_radial_bands(self) -> None:
+    def _ensure_radial_bands(self, device: torch.device | None = None) -> None:
         """Build the ``(per-coefficient band index, number of bands)`` on first use.
 
         The index is registered as a *non-persistent* buffer.
         Depends only on ``x_dim``/``y_dim``/``_radial_wavenumber_kind``.
+
+        If ``device`` is given and the buffer already exists on a different device,
+        it is rebuilt on ``device``.
         """
         if "_radial_band_index" in self._buffers:
-            return
+            if device is None or self._radial_band_index.device == device:
+                return
+        if device is None:
+            device = torch.device("cpu")
         if self._radial_wavenumber_kind == "fft":
-            ky = (torch.fft.fftfreq(self.y_dim) * self.y_dim).abs()
-            kx = (torch.fft.fftfreq(self.x_dim) * self.x_dim).abs()
+            ky = (torch.fft.fftfreq(self.y_dim, device=device) * self.y_dim).abs()
+            kx = (torch.fft.fftfreq(self.x_dim, device=device) * self.x_dim).abs()
         elif self._radial_wavenumber_kind == "index":
-            ky = torch.arange(self.y_dim, dtype=torch.float32)
-            kx = torch.arange(self.x_dim, dtype=torch.float32)
+            ky = torch.arange(self.y_dim, dtype=torch.float32, device=device)
+            kx = torch.arange(self.x_dim, dtype=torch.float32, device=device)
         else:
             raise ValueError(f"Unknown radial wavenumber kind: {self._radial_wavenumber_kind}")
         ky_grid, kx_grid = torch.meshgrid(ky, kx, indexing="ij")
@@ -102,7 +108,7 @@ class Cartesian2DTransform(SpectralTransform):
 
     def _sum_over_radial_bands(self, per_mode: torch.Tensor) -> torch.Tensor:
         """Collapse the two spectral dims ``[..., ky, kx, v] -> [..., L, v]``."""
-        self._ensure_radial_bands()
+        self._ensure_radial_bands(per_mode.device)
         *lead, ky, kx, v = per_mode.shape
         flat = per_mode.reshape(*lead, ky * kx, v)
         out = per_mode.new_zeros(*lead, self.n_radial_bands, v)
