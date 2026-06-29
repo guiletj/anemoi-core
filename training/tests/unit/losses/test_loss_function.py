@@ -1,4 +1,4 @@
-# (C) Copyright 2024 Anemoi contributors.
+# (C) Copyright 2024-2026 Anemoi contributors.
 #
 # This software is licensed under the terms of the Apache Licence Version 2.0
 # which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
@@ -10,11 +10,15 @@
 
 from types import SimpleNamespace
 
+
+from types import SimpleNamespace
+
 import einops
 import hydra
 import pytest
 import torch
 from omegaconf import DictConfig
+from pytest_mock import MockerFixture
 from pytest_mock import MockerFixture
 
 from anemoi.training.losses import CRPS
@@ -32,6 +36,7 @@ from anemoi.training.losses import get_loss_function
 from anemoi.training.losses.base import BaseLoss
 from anemoi.training.losses.base import FunctionalLoss
 from anemoi.training.train.methods.base import BaseTrainingModule
+from anemoi.training.train.methods.base import BaseTrainingModule
 from anemoi.training.utils.enums import TensorDim
 
 losses = [MSELoss, HuberLoss, MAELoss, RMSELoss, LogCoshLoss, CRPS, WeightedMSELoss]
@@ -47,8 +52,17 @@ def _resolve_subgrid(cfg: dict, output_mask: SimpleNamespace | None = None) -> N
 
 
 def _make_loss(target: str, output_mask: SimpleNamespace | None = None, **kwargs) -> BaseLoss:
+def _resolve_subgrid(cfg: dict, output_mask: SimpleNamespace | None = None) -> None:
+    mock_method = SimpleNamespace(output_mask={"data": output_mask})
+    multi_cfg = {"data": cfg}
+    BaseTrainingModule._resolve_subgrid(mock_method, multi_cfg)
+    return multi_cfg["data"]
+
+
+def _make_loss(target: str, output_mask: SimpleNamespace | None = None, **kwargs) -> BaseLoss:
     cfg = {"_target_": target, "scalers": []}
     cfg.update(kwargs)
+    cfg = _resolve_subgrid(cfg, output_mask)
     cfg = _resolve_subgrid(cfg, output_mask)
     return get_loss_function(DictConfig(cfg))
 
@@ -825,8 +839,8 @@ def test_spectral_crps_projection_from_graph_config() -> None:
                         "latitudes": [0.0, 0.0, 1.0, 1.0],
                         "longitudes": [0.0, 1.0, 0.0, 1.0],
                     },
-                    "num_nearest_neighbours": 1,
-                    "sigma": 1.0,
+                    "num_nearest_neighbours": 3,
+                    "sigma": 0.01,
                     "row_normalize": False,
                 },
                 "scalers": [],
@@ -838,6 +852,11 @@ def test_spectral_crps_projection_from_graph_config() -> None:
 
     out = loss(pred, target, squash=False)
     assert out.shape == (nvars,)
+
+    # Target-grid mode applies the Gaussian (sigma-weighted) KNN weights by default; a
+    # uniform fallback (the regression) would make every non-zero edge weight identical.
+    weights = loss.projection_provider.get_edges().to_dense()
+    assert weights[weights != 0].std() > 1e-6
 
 
 def test_spectral_crps_projection_from_existing_edges() -> None:

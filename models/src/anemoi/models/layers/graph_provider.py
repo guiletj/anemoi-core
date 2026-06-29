@@ -1,4 +1,4 @@
-# (C) Copyright 2025 Anemoi contributors.
+# (C) Copyright 2025-2026 Anemoi contributors.
 #
 # This software is licensed under the terms of the Apache Licence Version 2.0
 # which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
@@ -72,6 +72,19 @@ def create_graph_provider(
         )
     else:
         return NoOpGraphProvider()
+
+
+def normalize_projection_edges_name(
+    edges_name: tuple[str, str, str] | list[str] | None,
+) -> tuple[str, str, str]:
+    """Coerce a projection ``edges_name`` to the canonical PyG edge key ``(src, "to", dst)``.
+
+    Only the explicit 3-element form is accepted; YAML yields a list, which is returned as a
+    tuple (PyG's ``HeteroData`` requires a tuple key). Any other shape raises ``ValueError``.
+    """
+    if not (isinstance(edges_name, (list, tuple)) and len(edges_name) == 3):
+        raise ValueError(f"edges_name must be a (src, 'to', dst) triple, got {edges_name!r}")
+    return tuple(edges_name)
 
 
 def normalize_projection_edges_name(
@@ -654,7 +667,8 @@ class ProjectionGraphProvider(BaseGraphProvider):
         - ``matrix_path`` → file mode.
         - ``edges_name`` → edge mode (needs *graph_data*).
         - ``num_nearest_neighbours`` + ``grid``/``node_builder`` → target-grid mode,
-          building a KNN subgraph on the fly (needs *graph_data*).
+          building a Gaussian-weighted KNN subgraph on the fly from ``sigma`` (needs
+          *graph_data*).
 
         Returns ``None`` for an empty or ``None`` *config*, and raises ``ValueError`` on an
         ambiguous config or when *graph_data* is required but missing.
@@ -707,13 +721,21 @@ class ProjectionGraphProvider(BaseGraphProvider):
             raise ValueError("graph_data is required for projection mode 'target_grid'")
 
         from anemoi.graphs.builders import build_node_to_node_projection_subgraph
+        from anemoi.graphs.projection_helpers import DEFAULT_EDGE_WEIGHT_ATTRIBUTE
 
         target_node_name = config.get("target_node_name", "target_grid")
         subgraph = build_node_to_node_projection_subgraph(graph_data, data_node_name, target_node_name, config)
+        # The on-the-fly KNN subgraph carries Gaussian distance weights (derived from the
+        # mandatory `sigma`) under DEFAULT_EDGE_WEIGHT_ATTRIBUTE. Consume them by default so
+        # `sigma` actually takes effect; otherwise _build_from_graph falls back to uniform
+        # weights and `sigma` is silently ignored. An explicit `edge_weight_attribute` wins.
+        edge_weight_attribute = config.get("edge_weight_attribute")
+        if edge_weight_attribute is None:
+            edge_weight_attribute = DEFAULT_EDGE_WEIGHT_ATTRIBUTE
         return cls(
             graph=subgraph,
             edges_name=(data_node_name, "to", target_node_name),
-            edge_weight_attribute=config.get("edge_weight_attribute"),
+            edge_weight_attribute=edge_weight_attribute,
             src_node_weight_attribute=config.get("src_node_weight_attribute"),
             row_normalize=bool(config.get("row_normalize", False)),
         )
